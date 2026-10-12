@@ -38,7 +38,6 @@ This is **semantic segmentation**, not instance segmentation: separate cars shar
 | `driving_simulation.html` | Offline replay visualization using the saved sample images and masks in `assets/idd_lite_demo/`. It does not run the model or control a simulated vehicle. |
 | `assets/idd_lite_demo/` | Small image/mask pairs used by the offline HTML replay. |
 | `README_IDD.md` | Dataset layout, training details, and additional command-line usage notes. |
-| `Course Project Report - IDD Road Scene Segmentation.docx` | Course-project report. |
 | `requirements.txt` | Python dependencies; the listed PyTorch build is CPU-only. |
 | `.gitignore` | Keeps datasets, caches, model checkpoints, and generated media out of Git. |
 
