@@ -37,3 +37,6 @@ data/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Personal course report is kept locally, not published in this repo
+Course Project Report - IDD Road Scene Segmentation.docx
