@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoadPilot | Model-in-the-loop replay</title>
+<style>
+:root{color-scheme:dark;--bg:#08121c;--panel:#101e2a;--line:#263b4b;--muted:#90a6b7;--text:#edf5fb;--cyan:#55d6d2;--green:#9fe870;--amber:#f4bd61}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1a3547 0,transparent 56%),var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",Arial,sans-serif}
+.shell{max-width:1380px;margin:auto;padding:22px 26px 28px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:17px;gap:16px}.brand{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#14313c;color:var(--cyan);font-size:22px}h1{margin:0;font-size:20px}.sub{margin:3px 0 0;color:var(--muted);font-size:12px}.tag{border:1px solid #315060;border-radius:99px;padding:7px 12px;color:#bdebe7;font-size:10px;text-transform:uppercase;letter-spacing:.1em}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:15px;align-items:start}.card{background:linear-gradient(180deg,#12212ef5,#0d1924f5);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 14px 40px #0003}.bar{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:1px solid var(--line)}.bar strong{font-size:13px}.live{color:var(--green);font-size:10px;letter-spacing:.08em;text-transform:uppercase}.live:before{content:"";display:inline-block;width:7px;height:7px;margin-right:7px;border-radius:50%;background:var(--green);box-shadow:0 0 9px var(--green)}
+.view{position:relative;background:#0a1117;aspect-ratio:16/9}canvas{width:100%;height:100%;display:block}.chiprow{position:absolute;left:13px;top:12px;display:flex;gap:7px;pointer-events:none}.chip{background:#08121cdb;border:1px solid #fff2;border-radius:7px;padding:6px 8px;font-size:10px;backdrop-filter:blur(5px)}.frame-caption{position:absolute;left:14px;bottom:11px;color:#eef7f6;font-size:10px;text-shadow:0 1px 4px #000}
+.controls{padding:12px 14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap}button{background:#172a38;border:1px solid #355064;color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer;font:inherit;font-size:12px}button:hover{border-color:var(--cyan)}button.primary{background:#17434b;border-color:#25777a}input[type=range]{accent-color:var(--cyan);min-width:100px;flex:1}.small{color:var(--muted);font-size:10px}.aside{display:flex;flex-direction:column;gap:13px}.panel{padding:15px}.panel h2{margin:0 0 12px;color:#c7dbe6;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric{padding:9px;background:#0b1721;border:1px solid #203342;border-radius:9px}.metric label{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.metric div{margin-top:3px;font-size:18px;font-weight:650;font-variant-numeric:tabular-nums}.unit{color:var(--muted);font-size:10px;font-weight:400}.legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.item{font-size:10px;color:#c2d0d9;display:flex;align-items:center;gap:7px}.swatch{width:10px;height:10px;border-radius:3px}.info{color:var(--muted);font-size:10px;margin:10px 0 0}.explain{border-left:3px solid var(--amber);background:#241f16;border-radius:0 8px 8px 0;padding:10px 11px;color:#ead8b9;font-size:10px}.footer{text-align:center;color:#70899a;font-size:10px;margin-top:14px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.aside{display:grid;grid-template-columns:1fr 1fr}}@media(max-width:580px){.shell{padding:12px}.aside{display:flex}.tag{display:none}.small.hide-mobile{display:none}}
+</style>
+</head>
+<body><div class="shell">
+<header><div class="brand"><div class="logo">⌁</div><div><h1>RoadPilot <span style="color:var(--cyan);font-weight:400">/ MODEL REPLAY</span></h1><p class="sub">IDD Lite camera frames · predicted drivable region · proposed path</p></div></div><div class="tag">Offline perception demo</div></header>
+<main class="layout">
+  <section class="card"><div class="bar"><strong>Recorded road view</strong><span id="state" class="live">Replay active</span></div>
+    <div class="view"><canvas id="view" width="960" height="540" aria-label="Recorded road frame with model segmentation and estimated path"></canvas>
+      <div class="chiprow"><div class="chip">IDD LITE · TEST DRIVE 103</div><div class="chip">FRAME <b id="frameId">—</b></div></div>
+      <div class="frame-caption">Predicted classes overlay · cyan curve = path proposal from predicted drivable pixels</div>
+    </div>
+    <div class="controls"><button id="play" class="primary">❚❚ Pause</button><button id="prev">← Previous</button><button id="next">Next →</button><input id="scrub" type="range" min="0" max="6" step="1" value="0" aria-label="Replay frame"><span id="counter" class="small">1 / 7</span></div>
+  </section>
+  <aside class="aside">
+    <section class="card panel"><h2>Perception → path proposal</h2><div class="metrics">
+      <div class="metric"><label>Model validation mIoU</label><div>0.6308</div></div>
+      <div class="metric"><label>Drivable coverage</label><div><span id="coverage">—</span><span class="unit"> %</span></div></div>
+      <div class="metric"><label>Path offset at bottom</label><div><span id="offset">—</span><span class="unit"> % image width</span></div></div>
+      <div class="metric"><label>Path heading estimate</label><div><span id="heading">—</span><span class="unit"> °</span></div></div>
+    </div><div class="legend" id="legend"></div><p class="info">The path is estimated from the center of the predicted drivable area across image rows.</p></section>
+    <div class="explain"><b>What this demo actually does:</b> it replays real held-out IDD Lite images, displays the model’s saved pixel predictions, and derives a visual path proposal from pixels predicted as drivable.</div>
+    <div class="explain" style="border-color:#55d6d2;background:#10232a;color:#c5e8e6"><b>Current limit:</b> this is offline replay. It does not move a simulated vehicle, run live inference, or send steering commands.</div>
+  </aside>
+</main><div class="footer">Research visualization only · Not a vehicle controller · Not for road use</div></div>
+<script>
+(() => {
+  const files=['206393','331011','416301','478626','665169','881873','981216'];
+  const classes=['Drivable','Non-drivable','Living things','Vehicles','Roadside objects','Far objects','Sky'];
+  const colors=[[128,64,128],[244,35,232],[220,20,60],[0,0,142],[220,220,0],[70,70,70],[70,130,180]];
+  const root='assets/idd_lite_demo/drive_103/';
+  const canvas=document.getElementById('view'),ctx=canvas.getContext('2d');
+  let current=0,playing=true,last=0,frameImage=null,maskImage=null,points=[];
+  const W=canvas.width,H=canvas.height;
+  const legend=document.getElementById('legend');
+  classes.forEach((name,i)=>{const row=document.createElement('div');row.className='item';row.innerHTML=`<i class="swatch" style="background:rgb(${colors[i].join(',')})"></i>${name}`;legend.appendChild(row);});
+
+  function loadFrame(index){
+    current=(index+files.length)%files.length;
+    const id=files[current];
+    frameImage=new Image();maskImage=new Image();
+    let loaded=0;const ready=()=>{loaded++;if(loaded===2){analyze();render();}};
+    frameImage.onload=ready;maskImage.onload=ready;
+    frameImage.onerror=()=>{ctx.fillStyle='#08121c';ctx.fillRect(0,0,W,H);ctx.fillStyle='#edf5fb';ctx.font='18px Segoe UI';ctx.fillText('Could not load demo frames. Keep the assets folder beside this HTML file.',32,60);};
+    frameImage.src=root+id+'_image.jpg';maskImage.src=root+id+'_pred.png';
+    document.getElementById('frameId').textContent=id;
+    document.getElementById('counter').textContent=`${current+1} / ${files.length}`;
+    document.getElementById('scrub').value=current;
+  }
+  function analyze(){
+    const mw=maskImage.naturalWidth,mh=maskImage.naturalHeight;
+    const off=document.createElement('canvas');off.width=mw;off.height=mh;
+    const ox=off.getContext('2d',{willReadFrequently:true});ox.drawImage(maskImage,0,0);
+    const data=ox.getImageData(0,0,mw,mh).data;
+    let drivable=0,total=0;for(let y=0;y<mh;y++)for(let x=0;x<mw;x++){const id=data[(y*mw+x)*4];if(id===0)drivable++;if(id!==255)total++;}
+    document.getElementById('coverage').textContent=total?((100*drivable/total).toFixed(1)):'0.0';
+    // At each lower-image row, find a substantial drivable run and follow the
+    // run center upward, preferring continuity with the previous row.
+    const centers=[];let previous=mw/2;
+    for(let y=Math.floor(mh*.96);y>=Math.floor(mh*.48);y-=3){
+      const runs=[];let start=-1;
+      for(let x=0;x<=mw;x++){
+        const isDrive=x<mw&&data[(y*mw+x)*4]===0;
+        if(isDrive&&start<0)start=x;
+        if(!isDrive&&start>=0){const end=x-1,width=end-start+1;if(width>=mw*.12)runs.push({start,end,width,center:(start+end)/2});start=-1;}
+      }
+      if(!runs.length)continue;
+      runs.sort((a,b)=>Math.abs(a.center-previous)-Math.abs(b.center-previous));
+      const run=runs[0];previous=run.center;centers.push({x:run.center,y});
+    }
+    centers.reverse();
+    // Light smoothing prevents jagged one-row mask changes from dominating the path.
+    points=centers.map((p,i)=>{const window=centers.slice(Math.max(0,i-2),Math.min(centers.length,i+3));return{x:window.reduce((s,q)=>s+q.x,0)/window.length,y:p.y};});
+    const bottom=points[points.length-1],ahead=points[Math.max(0,points.length-5)];
+    if(bottom){document.getElementById('offset').textContent=(((bottom.x-mw/2)/mw)*100).toFixed(1);}
+    if(bottom&&ahead){const angle=Math.atan2((bottom.x-ahead.x),(ahead.y-bottom.y))*180/Math.PI;document.getElementById('heading').textContent=angle.toFixed(1);}
+  }
+  function render(){
+    if(!frameImage||!maskImage||!frameImage.complete||!maskImage.complete)return;
+    const iw=maskImage.naturalWidth,ih=maskImage.naturalHeight;
+    ctx.clearRect(0,0,W,H);ctx.drawImage(frameImage,0,0,W,H);
+    const off=document.createElement('canvas');off.width=iw;off.height=ih;
+    const ox=off.getContext('2d');ox.drawImage(maskImage,0,0);const src=ox.getImageData(0,0,iw,ih),rgba=src.data;
+    const colored=ox.createImageData(iw,ih);
+    for(let i=0;i<rgba.length;i+=4){const label=rgba[i];if(label<colors.length){const c=colors[label];colored.data[i]=c[0];colored.data[i+1]=c[1];colored.data[i+2]=c[2];colored.data[i+3]=label===0?125:90;}}
+    ox.putImageData(colored,0,0);ctx.drawImage(off,0,0,W,H);
+    if(points.length>1){
+      ctx.save();ctx.scale(W/iw,H/ih);ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);
+      for(let i=1;i<points.length;i++)ctx.lineTo(points[i].x,points[i].y);
+      ctx.lineWidth=Math.max(2,iw*.008);ctx.strokeStyle='#072b32';ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
+      ctx.lineWidth=Math.max(1.2,iw*.004);ctx.strokeStyle='#62f2e7';ctx.setLineDash([iw*.025,iw*.017]);ctx.stroke();ctx.setLineDash([]);
+      const p=points[points.length-1];ctx.fillStyle='#f8fcff';ctx.strokeStyle='#07151d';ctx.lineWidth=iw*.008;ctx.beginPath();ctx.arc(p.x,p.y,iw*.024,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+    } else {ctx.fillStyle='#08121ddd';ctx.fillRect(14,H-48,350,32);ctx.fillStyle='#fff';ctx.font='14px Segoe UI';ctx.fillText('No continuous drivable path detected in this frame',24,H-27);}
+  }
+  function tick(now){if(!last)last=now;if(playing&&now-last>1300){last=now;loadFrame(current+1);}requestAnimationFrame(tick);}
+  const play=document.getElementById('play');play.addEventListener('click',()=>{playing=!playing;play.textContent=playing?'❚❚ Pause':'▶ Replay';document.getElementById('state').textContent=playing?'Replay active':'Replay paused';});
+  document.getElementById('prev').addEventListener('click',()=>loadFrame(current-1));
+  document.getElementById('next').addEventListener('click',()=>loadFrame(current+1));
+  document.getElementById('scrub').addEventListener('input',e=>loadFrame(Number(e.target.value)));
+  loadFrame(0);requestAnimationFrame(tick);
+})();
+</script></body></html>

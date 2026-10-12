@@ -1,0 +1,39 @@
+# Python bytecode and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Gradio and runtime caches
+.gradio/
+*.log
+
+# Trained checkpoints and generated media
+*.pt
+*.pth
+*.onnx
+*.mp4
+*.mov
+*.avi
+*.mkv
+outputs/
+
+# Downloaded datasets and extracted IDD data
+idd20k/
+idd20k_lite/
+IDD_Detection/
+IDD_Segmentation/
+dataset/
+datasets/
+data/
+*.tar.gz
+*.zip
+
+# Local configuration and OS/editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.vscode/
